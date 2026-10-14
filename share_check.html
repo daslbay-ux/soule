@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>乗車チェックツール（リアルタイム共有版）</title>
+    <title>乗車チェック（2列リアルタイム共有版）</title>
     <!-- PeerJS CDN (P2P通信用) -->
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <!-- QRコード生成用 -->
@@ -14,37 +14,37 @@
             background-color: #f4f6f9;
             color: #333;
             margin: 0;
-            padding: 20px;
+            padding: 10px;
         }
         .container {
-            max-width: 600px;
+            max-width: 700px;
             margin: 0 auto;
             background: #fff;
-            padding: 20px;
+            padding: 15px;
             border-radius: 12px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
         h2 {
             margin-top: 0;
-            font-size: 1.4rem;
+            font-size: 1.3rem;
             color: #2c3e50;
             text-align: center;
         }
         .connection-box {
             background: #eef2f7;
-            padding: 12px;
+            padding: 10px;
             border-radius: 8px;
-            margin-bottom: 15px;
-            font-size: 0.9rem;
+            margin-bottom: 12px;
+            font-size: 0.85rem;
         }
         .connection-box input {
-            width: 70%;
-            padding: 6px;
+            width: 65%;
+            padding: 5px;
             border: 1px solid #ccc;
             border-radius: 4px;
         }
         .connection-box button {
-            padding: 6px 12px;
+            padding: 5px 10px;
             background: #3498db;
             color: white;
             border: none;
@@ -56,15 +56,15 @@
         }
         #status-msg {
             font-weight: bold;
-            margin-bottom: 10px;
-            font-size: 0.9rem;
+            margin-bottom: 8px;
+            font-size: 0.85rem;
             text-align: center;
         }
         .status-bar {
             background: #eef2f7;
-            padding: 12px;
+            padding: 10px;
             border-radius: 8px;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -78,44 +78,54 @@
             background: #e74c3c;
             color: white;
             border: none;
-            padding: 6px 12px;
+            padding: 5px 10px;
             border-radius: 4px;
             cursor: pointer;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
         }
         .btn-reset:hover {
             background: #c0392b;
         }
+        /* 2列グリッドのレイアウト */
         .checklist {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
             list-style: none;
             padding: 0;
             margin: 0;
         }
+        @media (max-width: 480px) {
+            .checklist {
+                grid-template-columns: 1fr; /* スマホの画面が狭すぎる場合は1列に自動切り替え */
+            }
+        }
         .check-item {
             display: flex;
             align-items: center;
-            padding: 10px 12px;
-            border-bottom: 1px solid #eee;
+            padding: 8px 10px;
+            background: #fafbfc;
+            border: 1px solid #eee;
+            border-radius: 6px;
             transition: background 0.2s;
-        }
-        .check-item:last-child {
-            border-bottom: none;
         }
         .check-item.checked {
             background-color: #e8f8f5;
+            border-color: #a3e4d7;
         }
         .check-item input[type="checkbox"] {
-            width: 22px;
-            height: 22px;
-            margin-right: 15px;
+            width: 20px;
+            height: 20px;
+            margin-right: 8px;
             cursor: pointer;
         }
         .check-item input[type="text"] {
             flex-grow: 1;
+            width: 0;
             border: 1px solid transparent;
             background: transparent;
-            font-size: 1rem;
-            padding: 4px;
+            font-size: 0.95rem;
+            padding: 2px;
             border-radius: 4px;
         }
         .check-item input[type="text"]:focus {
@@ -124,25 +134,27 @@
             outline: none;
         }
         .num {
-            width: 30px;
+            width: 24px;
             color: #7f8c8d;
             font-weight: bold;
+            font-size: 0.9rem;
+            flex-shrink: 0;
         }
         #qrcode {
             text-align: center;
-            margin-top: 10px;
+            margin-top: 8px;
         }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>🚌 乗車チェック（共有モード）</h2>
+    <h2>🚌 乗車チェック（2列共有モード）</h2>
     
     <div id="status-msg">接続中...</div>
 
     <div class="connection-box" id="host-controls" style="display:none;">
-        <p style="margin:0 0 8px 0;"><strong>【ホスト（代表者）用】</strong> このURLを他の人に共有してください：</p>
+        <p style="margin:0 0 6px 0;"><strong>【ホスト（代表者）用】</strong> このURLを共有：</p>
         <input type="text" id="share-url" readonly>
         <button onclick="copyUrl()">コピー</button>
         <div id="qrcode"></div>
@@ -162,57 +174,56 @@
 
 <script>
     const totalPeople = 18;
-    let members = Array.from({length: totalPeople}, (_, i) => `メンバー ${i + 1}`);
+    const defaultMembers = [
+        "五島", "小林", "渡辺", "山内", "服部", "高柳", 
+        "皆吉", "清水", "松田", "岩瀬", "金田", "遠藤", 
+        "山田", "下田", "水野", "吉本", "池田", "大久保"
+    ];
+
+    let members = JSON.parse(localStorage.getItem('bus_members')) || defaultMembers;
     let checkedState = Array(totalPeople).fill(false);
 
     let peer = null;
     let conn = null;
     let isHost = false;
-    const connections = []; // ホストが複数人と接続する場合
+    const connections = []; 
 
     const listContainer = document.getElementById('checklist');
     const countDisplay = document.getElementById('count');
     const statusMsg = document.getElementById('status-msg');
 
-    // 初期描画
     renderList();
 
-    // URLパラメータのチェック（ゲストかどうか）
     const urlParams = new URLSearchParams(window.location.search);
     const hostId = urlParams.get('host');
 
     if (!hostId) {
-        // === ホスト（最初に開いた人）としての処理 ===
         isHost = true;
-        peer = new Peer(); // ランダムなIDでPeer作成
+        peer = new Peer(); 
         
         peer.on('open', (id) => {
-            statusMsg.textContent = '🟢 ホストとして待機中（他の人と共有できます）';
+            statusMsg.textContent = '🟢 ホストとして待機中';
             document.getElementById('host-controls').style.display = 'block';
             
             const shareUrl = `${window.location.origin}${window.location.pathname}?host=${id}`;
             document.getElementById('share-url').value = shareUrl;
 
-            // QRコード生成
             try {
                 const qr = qrcode(0, 'M');
                 qr.addData(shareUrl);
                 qr.make();
-                document.getElementById('qrcode').innerHTML = qr.createImgTag(4);
+                document.getElementById('qrcode').innerHTML = qr.createImgTag(3);
             } catch(e) {}
         });
 
-        // ゲストからの接続を待ち受ける
         peer.on('connection', (connection) => {
             connections.push(connection);
             setupConnection(connection);
-            // 接続してきたゲストに現在の全データを送信
             connection.send({ type: 'SYNC', members, checkedState });
             statusMsg.textContent = `🟢 接続中（参加者: ${connections.length}人）`;
         });
 
     } else {
-        // === ゲスト（共有リンクから入った人）としての処理 ===
         isHost = false;
         peer = new Peer();
 
@@ -226,7 +237,7 @@
     function setupConnection(targetConn) {
         targetConn.on('open', () => {
             if (!isHost) {
-                statusMsg.textContent = '🟢 ホストと接続しました（リアルタイム同期中）';
+                statusMsg.textContent = '🟢 リアルタイム同期中';
             }
         });
 
@@ -239,7 +250,6 @@
                 members = data.members;
                 checkedState = data.checkedState;
                 renderList();
-                // ホストの場合は他のゲスト全員にも転送する
                 if (isHost) {
                     connections.forEach(c => {
                         if (c !== targetConn) c.send(data);
@@ -255,7 +265,6 @@
         });
     }
 
-    // データの変更をブロードキャスト（送信）する
     function broadcastData() {
         const data = { type: 'UPDATE', members, checkedState };
         if (isHost) {
@@ -278,12 +287,13 @@
             li.innerHTML = `
                 <span class="num">${index + 1}.</span>
                 <input type="checkbox" id="chk-${index}" ${checkedState[index] ? 'checked' : ''} onchange="toggleCheck(${index})">
-                <input type="text" value="${name}" oninput="updateName(${index}, this.value)" placeholder="名前を入力">
+                <input type="text" value="${name}" oninput="updateName(${index}, this.value)" placeholder="名前">
             `;
             listContainer.appendChild(li);
         });
 
         countDisplay.textContent = `${checkedCount} / ${totalPeople}`;
+        localStorage.setItem('bus_members', JSON.stringify(members));
     }
 
     function toggleCheck(index) {
@@ -295,6 +305,7 @@
 
     function updateName(index, value) {
         members[index] = value;
+        localStorage.setItem('bus_members', JSON.stringify(members));
         broadcastData();
     }
 
