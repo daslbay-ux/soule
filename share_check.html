@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>乗車チェック（2列強制・共有モード）</title>
+    <title>乗車チェック（2列共有モード）</title>
     <!-- PeerJS CDN (P2P通信用) -->
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <!-- QRコード生成用 -->
@@ -80,7 +80,7 @@
             cursor: pointer;
             font-size: 0.8rem;
         }
-        /* ★常に強制的に2列にする設定に変更 */
+        /* 2列強制レイアウト */
         .checklist {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -89,14 +89,20 @@
             padding: 0;
             margin: 0;
         }
+        /* リクエストの通り、カード全体をタップ可能にする */
         .check-item {
             display: flex;
             align-items: center;
-            padding: 6px 8px;
+            padding: 8px 10px;
             background: #fafbfc;
             border: 1px solid #eee;
             border-radius: 6px;
+            cursor: pointer;
             transition: background 0.2s;
+            user-select: none; /* タップ時の文字選択を防止 */
+        }
+        .check-item:hover {
+            background: #f0f4f8;
         }
         .check-item.checked {
             background-color: #e8f8f5;
@@ -105,23 +111,15 @@
         .check-item input[type="checkbox"] {
             width: 18px;
             height: 18px;
-            margin-right: 6px;
+            margin-right: 8px;
             cursor: pointer;
             flex-shrink: 0;
+            pointer-events: none; /* チェックボックス自体のイベントを親にまかせる */
         }
-        .check-item input[type="text"] {
+        .name-text {
             flex-grow: 1;
-            width: 0;
-            border: 1px solid transparent;
-            background: transparent;
-            font-size: 0.85rem;
-            padding: 2px;
-            border-radius: 4px;
-        }
-        .check-item input[type="text"]:focus {
-            border-color: #3498db;
-            background: #fff;
-            outline: none;
+            font-size: 0.95rem;
+            font-weight: 500;
         }
         .num {
             width: 20px;
@@ -130,7 +128,7 @@
             font-size: 0.8rem;
             flex-shrink: 0;
             text-align: right;
-            margin-right: 4px;
+            margin-right: 6px;
         }
         #qrcode {
             text-align: center;
@@ -166,13 +164,12 @@
 
 <script>
     const totalPeople = 18;
-    const defaultMembers = [
+    const members = [
         "五島", "小林", "渡辺", "山内", "服部", "高柳", 
         "皆吉", "清水", "松田", "岩瀬", "金田", "遠藤", 
         "山田", "下田", "水野", "吉本", "池田", "大久保"
     ];
 
-    let members = JSON.parse(localStorage.getItem('bus_members')) || defaultMembers;
     let checkedState = Array(totalPeople).fill(false);
 
     let peer = null;
@@ -211,7 +208,7 @@
         peer.on('connection', (connection) => {
             connections.push(connection);
             setupConnection(connection);
-            connection.send({ type: 'SYNC', members, checkedState });
+            connection.send({ type: 'SYNC', checkedState });
             statusMsg.textContent = `🟢 接続中（参加者: ${connections.length}人）`;
         });
 
@@ -235,11 +232,9 @@
 
         targetConn.on('data', (data) => {
             if (data.type === 'SYNC') {
-                members = data.members;
                 checkedState = data.checkedState;
                 renderList();
             } else if (data.type === 'UPDATE') {
-                members = data.members;
                 checkedState = data.checkedState;
                 renderList();
                 if (isHost) {
@@ -258,7 +253,7 @@
     }
 
     function broadcastData() {
-        const data = { type: 'UPDATE', members, checkedState };
+        const data = { type: 'UPDATE', checkedState };
         if (isHost) {
             connections.forEach(c => c.send(data));
         } else if (conn && conn.open) {
@@ -275,29 +270,23 @@
 
             const li = document.createElement('li');
             li.className = `check-item ${checkedState[index] ? 'checked' : ''}`;
+            // 枠全体をタップしたときの処理
+            li.onclick = () => toggleCheck(index);
 
             li.innerHTML = `
                 <span class="num">${index + 1}</span>
-                <input type="checkbox" id="chk-${index}" ${checkedState[index] ? 'checked' : ''} onchange="toggleCheck(${index})">
-                <input type="text" value="${name}" oninput="updateName(${index}, this.value)" placeholder="名前">
+                <input type="checkbox" ${checkedState[index] ? 'checked' : ''}>
+                <span class="name-text">${name}</span>
             `;
             listContainer.appendChild(li);
         });
 
         countDisplay.textContent = `${checkedCount} / ${totalPeople}`;
-        localStorage.setItem('bus_members', JSON.stringify(members));
     }
 
     function toggleCheck(index) {
-        const chk = document.getElementById(`chk-${index}`);
-        checkedState[index] = chk.checked;
+        checkedState[index] = !checkedState[index];
         renderList();
-        broadcastData();
-    }
-
-    function updateName(index, value) {
-        members[index] = value;
-        localStorage.setItem('bus_members', JSON.stringify(members));
         broadcastData();
     }
 
