@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>乗車チェック（2列リアルタイム共有版）</title>
+    <title>乗車チェック（2列強制・共有モード）</title>
     <!-- PeerJS CDN (P2P通信用) -->
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <!-- QRコード生成用 -->
@@ -14,57 +14,54 @@
             background-color: #f4f6f9;
             color: #333;
             margin: 0;
-            padding: 10px;
+            padding: 5px;
         }
         .container {
-            max-width: 700px;
+            max-width: 800px;
             margin: 0 auto;
             background: #fff;
-            padding: 15px;
+            padding: 10px;
             border-radius: 12px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
         h2 {
             margin-top: 0;
-            font-size: 1.3rem;
+            font-size: 1.2rem;
             color: #2c3e50;
             text-align: center;
         }
         .connection-box {
             background: #eef2f7;
-            padding: 10px;
+            padding: 8px;
             border-radius: 8px;
-            margin-bottom: 12px;
-            font-size: 0.85rem;
+            margin-bottom: 10px;
+            font-size: 0.8rem;
         }
         .connection-box input {
-            width: 65%;
-            padding: 5px;
+            width: 60%;
+            padding: 4px;
             border: 1px solid #ccc;
             border-radius: 4px;
         }
         .connection-box button {
-            padding: 5px 10px;
+            padding: 4px 8px;
             background: #3498db;
             color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
         }
-        .connection-box button:hover {
-            background: #2980b9;
-        }
         #status-msg {
             font-weight: bold;
-            margin-bottom: 8px;
-            font-size: 0.85rem;
+            margin-bottom: 6px;
+            font-size: 0.8rem;
             text-align: center;
         }
         .status-bar {
             background: #eef2f7;
-            padding: 10px;
+            padding: 8px 10px;
             border-radius: 8px;
-            margin-bottom: 15px;
+            margin-bottom: 12px;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -72,38 +69,30 @@
         }
         .status-count {
             color: #2980b9;
-            font-size: 1.1rem;
+            font-size: 1rem;
         }
         .btn-reset {
             background: #e74c3c;
             color: white;
             border: none;
-            padding: 5px 10px;
+            padding: 4px 8px;
             border-radius: 4px;
             cursor: pointer;
-            font-size: 0.85rem;
+            font-size: 0.8rem;
         }
-        .btn-reset:hover {
-            background: #c0392b;
-        }
-        /* 2列グリッドのレイアウト */
+        /* ★常に強制的に2列にする設定に変更 */
         .checklist {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 8px;
+            gap: 6px;
             list-style: none;
             padding: 0;
             margin: 0;
         }
-        @media (max-width: 480px) {
-            .checklist {
-                grid-template-columns: 1fr; /* スマホの画面が狭すぎる場合は1列に自動切り替え */
-            }
-        }
         .check-item {
             display: flex;
             align-items: center;
-            padding: 8px 10px;
+            padding: 6px 8px;
             background: #fafbfc;
             border: 1px solid #eee;
             border-radius: 6px;
@@ -114,17 +103,18 @@
             border-color: #a3e4d7;
         }
         .check-item input[type="checkbox"] {
-            width: 20px;
-            height: 20px;
-            margin-right: 8px;
+            width: 18px;
+            height: 18px;
+            margin-right: 6px;
             cursor: pointer;
+            flex-shrink: 0;
         }
         .check-item input[type="text"] {
             flex-grow: 1;
             width: 0;
             border: 1px solid transparent;
             background: transparent;
-            font-size: 0.95rem;
+            font-size: 0.85rem;
             padding: 2px;
             border-radius: 4px;
         }
@@ -134,27 +124,29 @@
             outline: none;
         }
         .num {
-            width: 24px;
+            width: 20px;
             color: #7f8c8d;
             font-weight: bold;
-            font-size: 0.9rem;
+            font-size: 0.8rem;
             flex-shrink: 0;
+            text-align: right;
+            margin-right: 4px;
         }
         #qrcode {
             text-align: center;
-            margin-top: 8px;
+            margin-top: 6px;
         }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>🚌 乗車チェック（2列共有モード）</h2>
+    <h2>🚌 乗車チェック（2列モード）</h2>
     
     <div id="status-msg">接続中...</div>
 
     <div class="connection-box" id="host-controls" style="display:none;">
-        <p style="margin:0 0 6px 0;"><strong>【ホスト（代表者）用】</strong> このURLを共有：</p>
+        <p style="margin:0 0 4px 0;"><strong>【ホスト用URL】</strong></p>
         <input type="text" id="share-url" readonly>
         <button onclick="copyUrl()">コピー</button>
         <div id="qrcode"></div>
@@ -162,7 +154,7 @@
 
     <div class="status-bar">
         <div>
-            チェック状況: <span id="count" class="status-count">0 / 18</span>
+            チェック: <span id="count" class="status-count">0 / 18</span>
         </div>
         <button class="btn-reset" onclick="resetCheck()">リセット</button>
     </div>
@@ -285,7 +277,7 @@
             li.className = `check-item ${checkedState[index] ? 'checked' : ''}`;
 
             li.innerHTML = `
-                <span class="num">${index + 1}.</span>
+                <span class="num">${index + 1}</span>
                 <input type="checkbox" id="chk-${index}" ${checkedState[index] ? 'checked' : ''} onchange="toggleCheck(${index})">
                 <input type="text" value="${name}" oninput="updateName(${index}, this.value)" placeholder="名前">
             `;
